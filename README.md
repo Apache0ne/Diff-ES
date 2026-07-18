@@ -72,6 +72,14 @@ The default Colab checkpoint path is:
 /content/models/hyper_sdxl_4step_471056.safetensors
 ```
 
+Before downloading COCO or starting a search, verify the complete checkpoint and Diff-ES UNet conversion:
+
+```bash
+python sdxl/evo_pruning_sdxl_single_file.py --load-only
+```
+
+This loads the single file, verifies the UNet, `text_encoder`, `text_encoder_2`, and VAE, installs the prunable UNet wrappers, prints parameter/dtype information, and exits.
+
 ## Running
 Run commands from repository root.
 
@@ -156,6 +164,7 @@ python sdxl/evo_pruning_sdxl.py \
 - `--model-config`: optional local Diffusers pipeline directory or Hugging Face config repository; it supplies configuration/tokenizer assets, not model weights.
 - `--scheduler`: `ddim-trailing`, `euler-trailing`, or `checkpoint`.
 - `--model-dtype`: checkpoint conversion/load dtype (`float16`, `bfloat16`, or `float32`).
+- `--load-only`: validate all checkpoint components and the prunable UNet conversion without COCO or search.
 - `--prune-method`: pruning backend (`layerdrop`, `secondorder`, `wanda`, `magnitude`, `activation`).
 - `--target-level`: global average pruning target in level space.
 - `--num-stages`: number of diffusion timeline segments.

@@ -176,6 +176,50 @@ def _build_single_file_pipeline(args, inherited_kwargs):
     return pipe
 
 
+def _count_parameters(module) -> int:
+    return sum(parameter.numel() for parameter in module.parameters())
+
+
+def _run_load_only(args) -> None:
+    """Load and convert the checkpoint without requiring COCO or running search."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+    )
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    pipe = _build_single_file_pipeline(args, {})
+    pruned_unet = diff_es.attach_pruned_unet(pipe, device)
+    pipe.to(device)
+
+    n_basic, n_wrappers = diff_es.count_pruned_blocks(pruned_unet)
+    components = {
+        "unet": pipe.unet,
+        "text_encoder": pipe.text_encoder,
+        "text_encoder_2": pipe.text_encoder_2,
+        "vae": pipe.vae,
+    }
+
+    print("=" * 80)
+    print("DIFF-ES SINGLE-FILE CHECKPOINT LOAD TEST")
+    print("=" * 80)
+    print(f"Checkpoint: {Path(args.model_path).expanduser()}")
+    print(f"Device:     {device}")
+    print(f"Scheduler:  {pipe.scheduler.__class__.__name__}")
+    for name, component in components.items():
+        try:
+            dtype = next(component.parameters()).dtype
+        except StopIteration:
+            dtype = "no parameters"
+        print(
+            f"{name:15s} params={_count_parameters(component):,} "
+            f"dtype={dtype}"
+        )
+    print(f"Pruned BasicTransformerBlock modules: {n_basic}")
+    print(f"Pruned Transformer2DModel wrappers:    {n_wrappers}")
+    print("The complete checkpoint loaded and its UNet was converted for Diff-ES.")
+    print("=" * 80)
+
+
 def _install_single_file_loader(args) -> None:
     class SingleFilePipelineProxy:
         @classmethod
@@ -233,6 +277,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     model_group.add_argument(
+        "--load-only",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Load the complete checkpoint, install the prunable UNet wrapper, "
+            "print component statistics, and exit without COCO/search."
+        ),
+    )
+    model_group.add_argument(
         "--disable-mmap",
         action=argparse.BooleanOptionalAction,
         default=False,
@@ -251,6 +304,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_arg_parser()
     args = parser.parse_args()
+    if args.load_only:
+        _run_load_only(args)
+        return
     _install_single_file_loader(args)
     diff_es.main(args)
 

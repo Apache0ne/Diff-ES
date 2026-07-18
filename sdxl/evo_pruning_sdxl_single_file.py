@@ -232,8 +232,19 @@ def _install_single_file_loader(args) -> None:
     diff_es.StableDiffusionXLPipeline = SingleFilePipelineProxy
 
 
+def _make_target_level_optional(parser: argparse.ArgumentParser) -> None:
+    """Allow --load-only without an otherwise irrelevant pruning target."""
+    for action in parser._actions:
+        if action.dest == "target_level":
+            action.required = False
+            action.default = 3.0
+            return
+    raise RuntimeError("Inherited parser does not define --target-level")
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = diff_es.build_arg_parser()
+    _make_target_level_optional(parser)
     model_group = parser.add_argument_group("single-file SDXL checkpoint")
 
     model_group.add_argument(
@@ -294,6 +305,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     # The fork's target checkpoint is a Hyper-SDXL four-step model.
     parser.set_defaults(
+        target_level=3.0,
         num_sampling_steps=4,
         cfg_scale=0.0,
         local_files_only=False,
